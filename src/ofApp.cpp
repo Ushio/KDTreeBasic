@@ -152,17 +152,27 @@ static void draw_recursive_2d(const std::unique_ptr<kd::KDNode<ofVec2f>> &node, 
 }
 
 static void draw_query_2d(const std::unique_ptr<kd::KDNode<ofVec2f>> &node, ofVec2f p, float radius) {
-	if (node->points.empty()) {
-		if (node->axis == 0) {
-			
+	if (node->isLeaf == false) {
+		if (p[node->axis] < node->border + radius) {
+			draw_query_2d(node->lhs, p, radius);
 		}
-		else {
-
+		if (node->border - radius < p[node->axis]) {
+			draw_query_2d(node->rhs, p, radius);
 		}
 	}
 	else {
+		float radiusSq = radius * radius;
 		for (int i = 0; i < node->points.size(); ++i) {
-			ofDrawCircle(node->points[i], 0.05f);
+			auto node_point = node->points[i];
+			double distanceSq = 0.0;
+			for (int j = 0; j < 2; ++j) {
+				double x = node_point[j] - p[j];
+				distanceSq += x * x;
+			}
+
+			if (distanceSq < radiusSq) {
+				ofDrawCircle(node->points[i], 0.05f);
+			}
 		}
 	}
 }
@@ -219,6 +229,13 @@ void ofApp::draw(){
 	// lineindex = 0;
 	draw_recursive_2d(kdtree.node);
 
+	ofNoFill();
+	ofDrawCircle(_sphere_x, _sphere_y, _sphere_radius);
+	ofFill();
+
+	ofSetColor(255, 0, 0);
+	draw_query_2d(kdtree.node, ofVec2f(_sphere_x, _sphere_y), _sphere_radius);
+
 	_camera.end();
 
 	// ofDisableDepthTest();
@@ -232,6 +249,10 @@ void ofApp::draw(){
 
 	ImGui::Begin("Config Panel");
 	ImGui::Text("fps: %.2f", ofGetFrameRate());
+	ImGui::InputFloat("sphere x", &_sphere_x, 0.1f);
+	ImGui::InputFloat("sphere y", &_sphere_y, 0.1f);
+	ImGui::InputFloat("sphere r", &_sphere_radius, 0.1f);
+
 	auto wp = ImGui::GetWindowPos();
 	auto ws = ImGui::GetWindowSize();
 	ofRectangle win(wp.x, wp.y, ws.x, ws.y);
