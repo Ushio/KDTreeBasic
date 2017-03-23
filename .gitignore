@@ -1,0 +1,46 @@
+# Mac OS X cruft
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.user
+project.xcworkspace
+xcuserdata/
+*.xccheckout
+.DS_Store
+
+# Windows cruft
+*.suo
+*.ncb
+*.sdf
+*.VC.opendb
+*.VC.db
+*.opensdf
+Debug/
+Release/
+Debug_ANGLE/
+Release_ANGLE/
+ipch/
+
+# doxygen generated files
+docs/html
+docs/xml
+docs/doxygen/cinder.tag
+docs/*/node_modules
+*.pyc
+
+
+*.exe
+*.exp
+*.ilk
+*.lib
+*.pdb
+
+FreeImage.dll
+Zlib.dll
+assimp.dll
+fmodex.dll
+fmodexL.dll
+freetype.dll
+glut32.dll
+libeay32.dll
+ssleay32.dll
