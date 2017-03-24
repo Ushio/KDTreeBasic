@@ -5,6 +5,9 @@
 //int lineindex = 0;
 //int selectedLineIndex = 0;
 
+#define DIM_2
+//#define DIM_3
+
 namespace kd {
 	struct Xor {
 		Xor() {
@@ -48,9 +51,9 @@ namespace kd {
 		std::unique_ptr<KDNode<T>> rhs;
 	};
 
-	template <class T, int DIM>
+	template <class T>
 	static inline std::unique_ptr<KDNode<T>> build_tree(const std::vector<T> &points, int depth, int max_elements, Xor &xor_random) {
-		int axis = depth % DIM;
+		int axis = depth % traits::access<T>::DIM;
 		if (points.size() <= max_elements) {
 			std::unique_ptr<KDNode<T>> leaf(new KDNode<T>());
 			leaf->points = points;
@@ -82,18 +85,49 @@ namespace kd {
 			}
 		}
 
-		node->lhs = build_tree<T, DIM>(lhs, depth + 1, max_elements, xor_random);
-		node->rhs = build_tree<T, DIM>(rhs, depth + 1, max_elements, xor_random);
+		node->lhs = build_tree<T>(lhs, depth + 1, max_elements, xor_random);
+		node->rhs = build_tree<T>(rhs, depth + 1, max_elements, xor_random);
 
 		return node;
 	}
 
+	template <class T, class F, class P>
+	void query_tree(F &func, const std::unique_ptr<kd::KDNode<T>> &node, P origin, double radius, double radiusSq) {
+		if (node->isLeaf == false) {
+			if (origin[node->axis] < node->border + radius) {
+				query_tree(func, node->lhs, origin, radius, radiusSq);
+			}
+			if (node->border - radius < origin[node->axis]) {
+				query_tree(func, node->rhs, origin, radius, radiusSq);
+			}
+		}
+		else {
+			for (int i = 0; i < node->points.size(); ++i) {
+				auto node_point = node->points[i];
+				double distanceSq = 0.0;
+				for (int j = 0; j < traits::access<T>::DIM; ++j) {
+					double x = node_point[j] - origin[j];
+					distanceSq += x * x;
+				}
+
+				if (distanceSq < radiusSq) {
+					func(node->points[i]);
+				}
+			}
+		}
+	}
+
 	template <class T>
-	class KDTree2D {
+	class KDTree {
 	public:
-		KDTree2D(const std::vector<T> &points) {
+		KDTree(const std::vector<T> &points) {
 			Xor xor_random;
-			node = build_tree<T, 2>(points, 0, 5, xor_random);
+			node = build_tree<T>(points, 0, 5, xor_random);
+		}
+
+		template <class F, class P>
+		void query(F &func, P origin, double radius) {
+			query_tree(func, node, origin, radius, radius * radius);
 		}
 		std::unique_ptr<KDNode<T>> node;
 	};
@@ -106,8 +140,23 @@ namespace kd {
 		{
 			static double get(const ofVec2f& p, int dim)
 			{
-				return p[dim];
+				return static_cast<double>(p[dim]);
 			}
+			enum {
+				DIM = 2,
+			};
+		};
+
+		template <>
+		struct access<ofVec3f>
+		{
+			static double get(const ofVec3f& p, int dim)
+			{
+				return static_cast<double>(p[dim]);
+			}
+			enum {
+				DIM = 3,
+			};
 		};
 	}
 }
@@ -151,32 +200,32 @@ static void draw_recursive_2d(const std::unique_ptr<kd::KDNode<ofVec2f>> &node, 
 	}
 }
 
-static void draw_query_2d(const std::unique_ptr<kd::KDNode<ofVec2f>> &node, ofVec2f p, float radius) {
-	if (node->isLeaf == false) {
-		if (p[node->axis] < node->border + radius) {
-			draw_query_2d(node->lhs, p, radius);
-		}
-		if (node->border - radius < p[node->axis]) {
-			draw_query_2d(node->rhs, p, radius);
-		}
-	}
-	else {
-		float radiusSq = radius * radius;
-		for (int i = 0; i < node->points.size(); ++i) {
-			auto node_point = node->points[i];
-			double distanceSq = 0.0;
-			for (int j = 0; j < 2; ++j) {
-				double x = node_point[j] - p[j];
-				distanceSq += x * x;
-			}
-
-			if (distanceSq < radiusSq) {
-				ofDrawCircle(node->points[i], 0.05f);
-			}
-		}
-	}
-}
-
+//static void draw_query_2d(const std::unique_ptr<kd::KDNode<ofVec2f>> &node, ofVec2f p, float radius) {
+//	if (node->isLeaf == false) {
+//		if (p[node->axis] < node->border + radius) {
+//			draw_query_2d(node->lhs, p, radius);
+//		}
+//		if (node->border - radius < p[node->axis]) {
+//			draw_query_2d(node->rhs, p, radius);
+//		}
+//	}
+//	else {
+//		float radiusSq = radius * radius;
+//		for (int i = 0; i < node->points.size(); ++i) {
+//			auto node_point = node->points[i];
+//			double distanceSq = 0.0;
+//			for (int j = 0; j < 2; ++j) {
+//				double x = node_point[j] - p[j];
+//				distanceSq += x * x;
+//			}
+//
+//			if (distanceSq < radiusSq) {
+//				ofDrawCircle(node->points[i], 0.05f);
+//			}
+//		}
+//	}
+//}
+//
 
 //--------------------------------------------------------------
 void ofApp::setup(){
@@ -185,6 +234,8 @@ void ofApp::setup(){
 	_camera.setNearClip(0.1f);
 	_camera.setFarClip(100.0f);
 	_camera.setDistance(5.0f);
+
+	ofSetSphereResolution(5);
 }
 
 //--------------------------------------------------------------
@@ -194,8 +245,6 @@ void ofApp::update(){
 static bool once = false;
 //--------------------------------------------------------------
 void ofApp::draw(){
-	// ofEnableDepthTest();
-
 	ofClear(0);
 	_camera.begin();
 	ofPushMatrix();
@@ -208,8 +257,7 @@ void ofApp::draw(){
 	// ofDrawAxis(50);
 	// ofPopMatrix();
 
-	// 
-	// 
+#ifdef DIM_2
 	static std::vector<ofVec2f> points;
 	
 	if (once == false) {
@@ -219,11 +267,11 @@ void ofApp::draw(){
 		static kd::Xor ra;
 
 		for (int i = 0; i < 500; ++i) {
-			points.emplace_back(ra.uniform(-10.0f, 10.0f), ra.uniform(-10.0f, 10.0f));
+			points.emplace_back((float)ra.uniform(-10.0f, 10.0f), (float)ra.uniform(-10.0f, 10.0f));
 		}
 	}
 
-	kd::KDTree2D<ofVec2f> kdtree(points);
+	kd::KDTree<ofVec2f> kdtree(points);
 
 	ofSetColor(255);
 	// lineindex = 0;
@@ -234,11 +282,52 @@ void ofApp::draw(){
 	ofFill();
 
 	ofSetColor(255, 0, 0);
-	draw_query_2d(kdtree.node, ofVec2f(_sphere_x, _sphere_y), _sphere_radius);
+	kdtree.query([](const ofVec2f p) {
+		ofDrawCircle(p, 0.05f);
+	}, ofVec2f(_sphere_x, _sphere_y), _sphere_radius);
+
+#endif
+
+#ifdef DIM_3
+	static std::vector<ofVec3f> points;
+
+	if (once == false) {
+		once = true;
+		points.clear();
+
+		static kd::Xor ra;
+
+		for (int i = 0; i < 500; ++i) {
+			points.emplace_back(
+				(float)ra.uniform(-10.0f, 10.0f),
+				(float)ra.uniform(-10.0f, 10.0f),
+				(float)ra.uniform(-10.0f, 10.0f));
+		}
+	}
+
+	for (int i = 0; i < points.size(); ++i) {
+		ofDrawSphere(points[i], 0.05f);
+	}
+
+	kd::KDTree<ofVec3f> kdtree(points);
+
+	ofSetColor(255);
+	for (int i = 0; i < points.size(); ++i) {
+		ofDrawSphere(points[i], 0.05f);
+	}
+
+	ofNoFill();
+	ofDrawSphere(_sphere_x, _sphere_y, _sphere_z, _sphere_radius);
+	ofFill();
+
+	ofSetColor(255, 0, 0);
+	kdtree.query([](const ofVec3f p) {
+		ofDrawSphere(p, 0.05f);
+	}, ofVec3f(_sphere_x, _sphere_y, _sphere_z), _sphere_radius);
+#endif
 
 	_camera.end();
 
-	// ofDisableDepthTest();
 	ofSetColor(255);
 
 	_imgui.begin();
@@ -251,6 +340,7 @@ void ofApp::draw(){
 	ImGui::Text("fps: %.2f", ofGetFrameRate());
 	ImGui::InputFloat("sphere x", &_sphere_x, 0.1f);
 	ImGui::InputFloat("sphere y", &_sphere_y, 0.1f);
+	ImGui::InputFloat("sphere z", &_sphere_z, 0.1f);
 	ImGui::InputFloat("sphere r", &_sphere_radius, 0.1f);
 
 	auto wp = ImGui::GetWindowPos();

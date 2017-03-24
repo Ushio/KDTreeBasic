@@ -26,5 +26,6 @@ public:
 
 	float _sphere_x = 0;
 	float _sphere_y = 0;
+	float _sphere_z = 0;
 	float _sphere_radius = 1.0f;
 };
