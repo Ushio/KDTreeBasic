@@ -103,7 +103,7 @@ namespace kd {
 				auto node_point = node->points[i];
 				double distanceSq = 0.0;
 				for (int j = 0; j < traits::access<T>::DIM; ++j) {
-					double x = node_point[j] - origin[j];
+					double x = traits::access<T>::get(node_point, j) - origin[j];
 					distanceSq += x * x;
 				}
 
@@ -123,7 +123,7 @@ namespace kd {
 		}
 
 		template <class F, class P>
-		void query(F &func, P origin, double radius) {
+		void query(F &func, P origin, double radius) const {
 			query_tree(func, node, origin, radius, radius * radius);
 		}
 		std::unique_ptr<KDNode<T>> node;
