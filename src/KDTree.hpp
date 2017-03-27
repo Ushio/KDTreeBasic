@@ -38,7 +38,8 @@ namespace kd {
 
 	template <class T>
 	struct KDNode {
-		std::vector<T> points;
+		T *points_beg = nullptr;
+		T *points_end = nullptr;
 		float border = 0.0f;
 		int axis = -1;
 		bool isLeaf = false;
@@ -48,42 +49,84 @@ namespace kd {
 	};
 
 	template <class T>
-	static inline std::unique_ptr<KDNode<T>> build_tree(const std::vector<T> &points, int depth, int max_elements, Xor &xor_random) {
+	static inline std::unique_ptr<KDNode<T>> build_tree(T *points_beg, T *points_end, int depth, int max_elements, Xor &xor_random) {
 		int axis = depth % traits::access<T>::DIM;
-		if (points.size() <= max_elements) {
+		int pointCount = (int)(points_end - points_beg);
+		if (pointCount <= max_elements) {
 			std::unique_ptr<KDNode<T>> leaf(new KDNode<T>());
-			leaf->points = points;
+			leaf->points_beg = points_beg;
+			leaf->points_end = points_end;
 			leaf->isLeaf = true;
 			return leaf;
 		}
 
 		double samples[10];
-		int sampleCount = std::min((int)points.size(), (int)sizeof(samples) / (int)sizeof(samples[0]));
+		int sampleCount = std::min(pointCount, (int)sizeof(samples) / (int)sizeof(samples[0]));
 		for (int i = 0; i < sampleCount; ++i) {
-			samples[i] = traits::access<T>::get(points[xor_random.generate() % sampleCount], axis);
+			samples[i] = traits::access<T>::get(points_beg[xor_random.generate() % sampleCount], axis);
 		}
 		int samples_mid = (sampleCount - 1) >> 1;
 		std::nth_element(samples, samples + samples_mid, samples + sampleCount);
 		double heuristic = samples[samples_mid];
 
+		T *points_lhs = points_beg;
+		T *points_rhs = points_end - 1;
+
+		while (true) {
+			while (traits::access<T>::get(*points_lhs, axis) < heuristic) {
+				points_lhs++;
+				// assert(points_lhs < points_end);
+			}
+			while (heuristic < traits::access<T>::get(*points_rhs, axis)) {
+				points_rhs--;
+				// assert(points_beg <= points_rhs);
+			}
+
+			if (points_rhs < points_lhs) {
+				break;
+			}
+			if (points_rhs == points_lhs) {
+				if (points_lhs == points_beg) {
+					points_lhs++;
+				}
+				else {
+					points_rhs--;
+				}
+				break;
+			}
+
+			std::swap(*points_lhs, *points_rhs);
+			points_lhs++;
+			points_rhs--;
+		}
+
+		std::vector<double> inputs(pointCount);
+		{
+			int di = 0;
+			for (auto it = points_beg; it != points_end; ++it) {
+				inputs[di] = traits::access<T>::get(*it, axis);
+				di++;
+			}
+		}
+
 		std::unique_ptr<KDNode<T>> node(new KDNode<T>());
 		node->border = heuristic;
 		node->axis = axis;
 
-		std::vector<T> lhs;
-		std::vector<T> rhs;
+		//// 検算
+		//int count = 0;
+		//for (auto it = points_beg; it != points_lhs; ++it) {
+		//	assert(traits::access<T>::get(*it, axis) <= heuristic);
+		//	count++;
+		//}
+		//for (auto it = points_lhs; it != points_end; ++it) {
+		//	assert(heuristic <= traits::access<T>::get(*it, axis));
+		//	count++;
+		//}
+		//assert(count == pointCount);
 
-		for (int i = 0; i < points.size(); ++i) {
-			if (traits::access<T>::get(points[i], axis) < node->border) {
-				lhs.emplace_back(points[i]);
-			}
-			else {
-				rhs.emplace_back(points[i]);
-			}
-		}
-
-		node->lhs = build_tree<T>(lhs, depth + 1, max_elements, xor_random);
-		node->rhs = build_tree<T>(rhs, depth + 1, max_elements, xor_random);
+		node->lhs = build_tree<T>(points_beg, points_lhs, depth + 1, max_elements, xor_random);
+		node->rhs = build_tree<T>(points_lhs, points_end, depth + 1, max_elements, xor_random);
 
 		return node;
 	}
@@ -99,8 +142,8 @@ namespace kd {
 			}
 		}
 		else {
-			for (int i = 0; i < node->points.size(); ++i) {
-				auto node_point = node->points[i];
+			for (auto it = node->points_beg; it != node->points_end; ++it) {
+				auto node_point = *it;
 				double distanceSq = 0.0;
 				for (int j = 0; j < traits::access<T>::DIM; ++j) {
 					double x = traits::access<T>::get(node_point, j) - origin[j];
@@ -108,7 +151,7 @@ namespace kd {
 				}
 
 				if (distanceSq < radiusSq) {
-					func(node->points[i]);
+					func(*it);
 				}
 			}
 		}
@@ -118,8 +161,9 @@ namespace kd {
 	class KDTree {
 	public:
 		KDTree(const std::vector<T> &points) {
+			_points = points;
 			Xor xor_random;
-			node = build_tree<T>(points, 0, 5, xor_random);
+			node = build_tree<T>(_points.data(), _points.data() + _points.size(), 0, 5, xor_random);
 		}
 
 		template <class F, class P>
@@ -127,5 +171,6 @@ namespace kd {
 			query_tree(func, node, origin, radius, radius * radius);
 		}
 		std::unique_ptr<KDNode<T>> node;
+		std::vector<T> _points;
 	};
 }

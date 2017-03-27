@@ -2,8 +2,8 @@
 
 #include "KDTree.hpp"
 
-#define DIM_2
-//#define DIM_3
+//#define DIM_2
+#define DIM_3
 
 namespace kd {
 	namespace traits
@@ -67,8 +67,11 @@ static void draw_recursive_2d(const std::unique_ptr<kd::KDNode<ofVec2f>> &node, 
 		}
 	}
 	else {
-		for (int i = 0; i < node->points.size(); ++i) {
-			ofDrawCircle(node->points[i], 0.05f);
+		//for (int i = 0; i < node->points.size(); ++i) {
+		//	ofDrawCircle(node->points[i], 0.05f);
+		//}
+		for (auto it = node->points_beg; it != node->points_end; ++it) {
+			ofDrawCircle(*it, 0.05f);
 		}
 	}
 }
@@ -144,11 +147,16 @@ void ofApp::draw(){
 		static kd::Xor ra;
 
 		for (int i = 0; i < 500; ++i) {
-			points.emplace_back(
-				(float)ra.uniform(-10.0f, 10.0f),
+			ofVec3f p((float)ra.uniform(-10.0f, 10.0f),
 				(float)ra.uniform(-10.0f, 10.0f),
 				(float)ra.uniform(-10.0f, 10.0f));
+
+			for (int j = 0; j < 6; ++j) {
+				points.emplace_back(p);
+			}
 		}
+
+		std::random_shuffle(points.begin(), points.end());
 	}
 
 	for (int i = 0; i < points.size(); ++i) {
