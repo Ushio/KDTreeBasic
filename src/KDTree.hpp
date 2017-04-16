@@ -2,7 +2,7 @@
 
 #include <memory>
 #include <algorithm>
-
+#include <mapbox/variant.hpp>
 
 namespace kd {
 	struct Xor {
@@ -37,26 +37,33 @@ namespace kd {
 	}
 
 	template <class T>
-	struct KDNode {
+	struct KDLeaf {
 		T *points_beg = nullptr;
 		T *points_end = nullptr;
-		float border = 0.0f;
-		int axis = -1;
-		bool isLeaf = false;
-
-		std::unique_ptr<KDNode<T>> lhs;
-		std::unique_ptr<KDNode<T>> rhs;
 	};
 
 	template <class T>
-	static inline std::unique_ptr<KDNode<T>> build_tree(T *points_beg, T *points_end, int depth, int max_elements, Xor &xor_random) {
+	struct KDBranch;
+	
+	template <class T>
+	using KDNode = mapbox::util::variant<KDLeaf<T>, std::unique_ptr<KDBranch<T>>>;
+
+	template <class T>
+	struct KDBranch {
+		float border = 0.0f;
+		int axis = -1;
+		KDNode<T> lhs;
+		KDNode<T> rhs;
+	};
+
+	template <class T>
+	static inline KDNode<T> build_tree(T *points_beg, T *points_end, int depth, int max_elements, Xor &xor_random) {
 		int axis = depth % traits::access<T>::DIM;
 		int pointCount = (int)(points_end - points_beg);
 		if (pointCount <= max_elements) {
-			std::unique_ptr<KDNode<T>> leaf(new KDNode<T>());
-			leaf->points_beg = points_beg;
-			leaf->points_end = points_end;
-			leaf->isLeaf = true;
+			KDLeaf<T> leaf;
+			leaf.points_beg = points_beg;
+			leaf.points_end = points_end;
 			return leaf;
 		}
 
@@ -109,7 +116,7 @@ namespace kd {
 			}
 		}
 
-		std::unique_ptr<KDNode<T>> node(new KDNode<T>());
+		std::unique_ptr<KDBranch<T>> node(new KDBranch<T>());
 		node->border = heuristic;
 		node->axis = axis;
 
@@ -132,17 +139,16 @@ namespace kd {
 	}
 
 	template <class T, class F, class P>
-	void query_tree(F &func, const std::unique_ptr<kd::KDNode<T>> &node, P origin, double radius, double radiusSq) {
-		if (node->isLeaf == false) {
+	void query_tree(F &func, const kd::KDNode<T> &node, P origin, double radius, double radiusSq) {
+		node.match([&func, origin, radius, radiusSq](const std::unique_ptr<KDBranch<T>> &node) {
 			if (origin[node->axis] < node->border + radius) {
 				query_tree(func, node->lhs, origin, radius, radiusSq);
 			}
 			if (node->border - radius < origin[node->axis]) {
 				query_tree(func, node->rhs, origin, radius, radiusSq);
 			}
-		}
-		else {
-			for (auto it = node->points_beg; it != node->points_end; ++it) {
+		}, [&func, origin, radiusSq](const kd::KDLeaf<T> &node) {
+			for (auto it = node.points_beg; it != node.points_end; ++it) {
 				auto node_point = *it;
 				double distanceSq = 0.0;
 				for (int j = 0; j < traits::access<T>::DIM; ++j) {
@@ -154,7 +160,7 @@ namespace kd {
 					func(*it);
 				}
 			}
-		}
+		});
 	}
 
 	template <class T>
@@ -170,7 +176,7 @@ namespace kd {
 		void query(F &func, P origin, double radius) const {
 			query_tree(func, node, origin, radius, radius * radius);
 		}
-		std::unique_ptr<KDNode<T>> node;
+		KDNode<T> node;
 		std::vector<T> _points;
 	};
 }

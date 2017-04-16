@@ -2,8 +2,8 @@
 
 #include "KDTree.hpp"
 #include <glm/glm.hpp>
-//#define DIM_2
-#define DIM_3
+#define DIM_2
+//#define DIM_3
 
 class Stopwatch {
 public:
@@ -58,46 +58,28 @@ namespace kd {
 	}
 }
 
-static void draw_recursive_2d(const std::unique_ptr<kd::KDNode<ofVec2f>> &node, ofVec2f aabb_min = ofVec2f(-1000, -1000), ofVec2f aabb_max = ofVec2f(1000, 1000)) {
-	if (node->isLeaf == false) {
-		//if (lineindex == selectedLineIndex) {
-		//	ofSetColor(255, 0, 0);
-		//}
-		//else {
-		//	ofSetColor(255);
-		//}
-
+static void draw_recursive_2d(const kd::KDNode<ofVec2f> &node, ofVec2f aabb_min = ofVec2f(-1000, -1000), ofVec2f aabb_max = ofVec2f(1000, 1000)) {
+	node.match([aabb_min, aabb_max](const std::unique_ptr<kd::KDBranch<ofVec2f>> &node) {
 		if (node->axis == 0) {
-			
 			ofDrawLine(node->border, aabb_min.y, node->border, aabb_max.y);
 			// lineindex++;
 
-			if (node->lhs) {
-				draw_recursive_2d(node->lhs, aabb_min, ofVec2f(node->border, aabb_max.y));
-			}
-			if (node->rhs) {
-				draw_recursive_2d(node->rhs, ofVec2f(node->border, aabb_min.y), aabb_max);
-			}
+			draw_recursive_2d(node->lhs, aabb_min, ofVec2f(node->border, aabb_max.y));
+			draw_recursive_2d(node->rhs, ofVec2f(node->border, aabb_min.y), aabb_max);
+
 		} else {
 			ofDrawLine(aabb_min.x, node->border, aabb_max.x, node->border);
 			// lineindex++;
 
-			if (node->lhs) {
-				draw_recursive_2d(node->lhs, aabb_min, ofVec2f(aabb_max.x, node->border));
-			}
-			if (node->rhs) {
-				draw_recursive_2d(node->rhs, ofVec2f(aabb_min.x, node->border), aabb_max);
-			}
+			draw_recursive_2d(node->lhs, aabb_min, ofVec2f(aabb_max.x, node->border));
+			draw_recursive_2d(node->rhs, ofVec2f(aabb_min.x, node->border), aabb_max);
+
 		}
-	}
-	else {
-		//for (int i = 0; i < node->points.size(); ++i) {
-		//	ofDrawCircle(node->points[i], 0.05f);
-		//}
-		for (auto it = node->points_beg; it != node->points_end; ++it) {
+	}, [aabb_min, aabb_max](const kd::KDLeaf<ofVec2f> &node) {
+		for (auto it = node.points_beg; it != node.points_end; ++it) {
 			ofDrawCircle(*it, 0.05f);
 		}
-	}
+	});
 }
 
 //--------------------------------------------------------------
@@ -115,6 +97,7 @@ void ofApp::setup(){
 void ofApp::update() {
 	// benchmark
 
+	/*
 	kd::Xor ra;
 
 	std::vector<glm::dvec3> points;
@@ -151,6 +134,8 @@ void ofApp::update() {
 	}
 	avg /= qCount;
 	printf("query %d ms, [avg = %.2f]\n", sw_query.elapsedMilliseconds(), avg);
+	*/
+
 	/*
 	build 301 ms
 	query 11 ms, [avg = 0.61]
