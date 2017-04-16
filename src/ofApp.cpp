@@ -1,9 +1,21 @@
 ﻿#include "ofApp.h"
 
 #include "KDTree.hpp"
-
+#include <glm/glm.hpp>
 //#define DIM_2
 #define DIM_3
+
+class Stopwatch {
+public:
+	Stopwatch() :_beginAt(std::chrono::high_resolution_clock::now()) {
+	}
+	std::chrono::milliseconds elapsedMilliseconds() const {
+		auto n = std::chrono::high_resolution_clock::now();
+		return std::chrono::duration_cast<std::chrono::milliseconds>(n - _beginAt);
+	}
+private:
+	std::chrono::high_resolution_clock::time_point _beginAt;
+};
 
 namespace kd {
 	namespace traits
@@ -24,6 +36,18 @@ namespace kd {
 		struct access<ofVec3f>
 		{
 			static double get(const ofVec3f& p, int dim)
+			{
+				return static_cast<double>(p[dim]);
+			}
+			enum {
+				DIM = 3,
+			};
+		};
+
+		template <>
+		struct access<glm::dvec3>
+		{
+			static double get(const glm::dvec3& p, int dim)
 			{
 				return static_cast<double>(p[dim]);
 			}
@@ -88,9 +112,51 @@ void ofApp::setup(){
 }
 
 //--------------------------------------------------------------
-void ofApp::update(){
+void ofApp::update() {
+	// benchmark
 
+	kd::Xor ra;
+
+	std::vector<glm::dvec3> points;
+
+	for (int i = 0; i < 200000; ++i) {
+		glm::dvec3 p(
+			ra.uniform(-10.0f, 10.0f),
+			ra.uniform(-10.0f, 10.0f),
+			ra.uniform(-10.0f, 10.0f));
+
+		for (int j = 0; j < 6; ++j) {
+			points.emplace_back(p);
+		}
+	}
+
+	std::random_shuffle(points.begin(), points.end());
+	Stopwatch sw_build;
+	kd::KDTree<glm::dvec3> kdtree(points);
+	printf("build %d ms\n", sw_build.elapsedMilliseconds());
+
+	Stopwatch sw_query;
+	double avg = 0;
+	int qCount = 5000;
+	for (int i = 0; i < qCount; ++i) {
+		int count = 0;
+		glm::dvec3 q(
+			ra.uniform(-10.0f, 10.0f),
+			ra.uniform(-10.0f, 10.0f),
+			ra.uniform(-10.0f, 10.0f));
+
+		kdtree.query([&avg](const glm::dvec3 p) {
+			avg += 1;
+		}, q, 0.1);
+	}
+	avg /= qCount;
+	printf("query %d ms, [avg = %.2f]\n", sw_query.elapsedMilliseconds(), avg);
+	/*
+	build 301 ms
+	query 11 ms, [avg = 0.61]
+	*/
 }
+
 static bool once = false;
 //--------------------------------------------------------------
 void ofApp::draw(){
