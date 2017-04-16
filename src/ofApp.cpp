@@ -1,6 +1,6 @@
 ﻿#include "ofApp.h"
 
-#include "KDTree.hpp"
+#include "kdtree.hpp"
 #include <glm/glm.hpp>
 #define DIM_2
 //#define DIM_3
